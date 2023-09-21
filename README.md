@@ -1,2 +1,2 @@
 # SimpleParser
-Простой парсер сайта book24
+Collecting data from book24.ru
