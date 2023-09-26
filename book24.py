@@ -1,64 +1,51 @@
-import requests
-from bs4 import BeautifulSoup
+import httpx
+from selectolax.parser import HTMLParser
+from dataclasses import dataclass, asdict
+import json
 
-class Parser:
+@dataclass
+class Product:
+    title: str
+    price: int
+    brand: str
+    id: str
 
-    """Метод-конструктор, принемающий ссылку на страницу и домен страницы"""
-    def __init__(self, url, domen):
-        self.url = url
-        self.domen = domen
+def get_html(page):
+    url = f"https://book24.ru/novie-knigi/page-{page}/"
+    resp = httpx.get(url)
 
-        self.req = requests.get(url)
-        self.soup = BeautifulSoup(self.req.text, 'html.parser')
+    return HTMLParser(resp.text)
 
-    """Метод, собирающий название книги, и имя автора"""
-    def parse_book(self):
 
-        book_names = []
-        tag_book = self.soup.find_all('a', class_='product-card__name')
-        for book in tag_book:
-            book_names.append(book.get('title'))
+def parse_products(html):
+    content = html.css('div.product-list__item')
 
-        author_names = []
-        tag_author = self.soup.find_all('div', class_='author-list product-card__authors-holder')
-        for a in tag_author:
-            author = a.find(class_='author-list__item')
-            author_names.append(author.text)
+    results = []
+    for item in content:
+        new_item = Product(
+            title=item.css_first('article').attrs['data-b24-name'],
+            price=int(item.css_first('article').attrs['data-b24-price']),
+            brand=item.css_first('article').attrs['data-b24-brand'],
+            id=item.css_first('article').attrs['data-b24-id']
+        )
 
-        # Запишем данные в словарь
-        info = {}
-        for i in range(0, len(book_names)):
-            info[book_names[i]] = author_names[i]
+        results.append(asdict(new_item))
 
-        return info
+    return results
 
-    """Метод, собирающий цену книги"""
-    def get_price(self):
+def main():
 
-        prices = []
-        prices_tag = self.soup.find_all('div', class_='product-list__item')
-        for i in prices_tag:
-            price = i.find('article')
-            prices.append(f"{price.get('data-b24-price')} Rub")
+    # Scraping from page 2 to page 20
+    for x in range(2, 21):
+        html = get_html(x)
+        data = parse_products(html)
+        json.dumps(data, indent=2)
 
-        return prices
+        with open('data_book24.json', 'w', encoding='utf-8') as jsonFile:
+            json.dump(data, jsonFile, ensure_ascii=False, indent=2)
 
-    """Метод, который собирает ссылку на обложку книги"""
-    def get_book_img(self):
-        images = self.soup.find_all('img', class_='product-card__image')
-        images_list = []  # Итоговый лист ссылок на изображения
-        for image in images:
-            if not 'https:' in image.get('data-src'):
-                images_list.append(f"https:{image.get('data-src')}")
-            else:
-                images_list.append(image.get('data-src'))
-
-        return images_list
-
-parser = Parser(url='https://book24.ru/novie-knigi/', domen='https://book24.ru/')
-print(parser.parse_book())
-print(parser.get_price())
-print(parser.get_book_img())
+if __name__ == '__main__':
+    main()
 
 
 
